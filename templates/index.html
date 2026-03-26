@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>网页邮箱提取器</title>
+  <style>
+    /* ── Reset & Base ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3250;
+      --accent: #6c63ff;
+      --accent-light: #8b83ff;
+      --green: #22c55e;
+      --yellow: #f59e0b;
+      --red: #ef4444;
+      --text: #e2e8f0;
+      --text-muted: #7b82a0;
+      --radius: 12px;
+      --shadow: 0 4px 24px rgba(0,0,0,.45);
+    }
+    html { scroll-behavior: smooth; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "PingFang SC", "Hiragino Sans GB", sans-serif;
+      min-height: 100vh;
+      padding: 2rem 1rem 4rem;
+    }
+
+    /* ── Layout ── */
+    .container { max-width: 860px; margin: 0 auto; }
+
+    /* ── Header ── */
+    header { text-align: center; margin-bottom: 2.5rem; }
+    header h1 {
+      font-size: 2.2rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, #6c63ff 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    header p { color: var(--text-muted); margin-top: .5rem; font-size: .95rem; }
+
+    /* ── Card ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.75rem;
+      box-shadow: var(--shadow);
+      margin-bottom: 1.5rem;
+    }
+    .card-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      margin-bottom: 1rem;
+    }
+
+    /* ── Textarea ── */
+    textarea {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: .95rem;
+      font-family: "Consolas", "Courier New", monospace;
+      line-height: 1.6;
+      padding: .85rem 1rem;
+      resize: vertical;
+      transition: border-color .2s;
+      outline: none;
+    }
+    textarea:focus { border-color: var(--accent); }
+    textarea::placeholder { color: var(--text-muted); }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: .75rem; margin-top: 1rem; flex-wrap: wrap; }
+    button {
+      display: inline-flex;
+      align-items: center;
+      gap: .4rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: .95rem;
+      font-weight: 600;
+      padding: .65rem 1.4rem;
+      transition: opacity .2s, transform .1s;
+    }
+    button:active { transform: scale(.97); }
+    button:disabled { opacity: .45; cursor: not-allowed; }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-light); }
+    .btn-ghost {
+      background: var(--surface2);
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+    .btn-export { background: #15803d; color: #fff; }
+    .btn-export:hover:not(:disabled) { background: #16a34a; }
+
+    /* ── Progress bar ── */
+    #progress-wrap { display: none; margin-bottom: 1.5rem; }
+    .progress-label {
+      display: flex; justify-content: space-between;
+      font-size: .85rem; color: var(--text-muted); margin-bottom: .4rem;
+    }
+    .progress-bar-bg {
+      background: var(--surface2);
+      border-radius: 999px;
+      height: 8px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #6c63ff, #a78bfa);
+      border-radius: 999px;
+      width: 0%;
+      transition: width .4s ease;
+    }
+    .progress-status {
+      font-size: .85rem;
+      color: var(--text-muted);
+      margin-top: .5rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── Results ── */
+    #results { display: none; }
+    .result-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+      gap: .5rem;
+    }
+    .result-header h2 { font-size: 1.3rem; font-weight: 700; }
+    .stats-badge {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: .25rem .85rem;
+      font-size: .82rem;
+      color: var(--text-muted);
+    }
+
+    /* ── Site card ── */
+    .site-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      margin-bottom: 1rem;
+      overflow: hidden;
+      animation: fadeIn .3s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+    .site-header {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: 1rem 1.25rem;
+      cursor: pointer;
+      user-select: none;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border);
+      transition: background .15s;
+    }
+    .site-header:hover { background: #272b40; }
+
+    .site-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--surface);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem; flex-shrink: 0;
+    }
+    .site-url {
+      font-size: .95rem;
+      font-weight: 600;
+      color: var(--text);
+      word-break: break-all;
+      flex: 1;
+    }
+    .site-badge {
+      flex-shrink: 0;
+      font-size: .78rem;
+      padding: .2rem .65rem;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .badge-ok { background: #14532d; color: #86efac; }
+    .badge-warn { background: #78350f; color: #fcd34d; }
+    .badge-err { background: #7f1d1d; color: #fca5a5; }
+    .chevron {
+      color: var(--text-muted);
+      transition: transform .25s;
+      font-size: 1rem;
+    }
+    .chevron.open { transform: rotate(180deg); }
+
+    .site-body { padding: 1.25rem; }
+
+    /* Official email */
+    .official-row {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      background: #1e2d1e;
+      border: 1px solid #2e6a2e;
+      border-radius: 8px;
+      padding: .75rem 1rem;
+      margin-bottom: 1rem;
+    }
+    .official-label {
+      font-size: .8rem;
+      font-weight: 700;
+      color: var(--green);
+      white-space: nowrap;
+    }
+    .official-email {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #86efac;
+      word-break: break-all;
+    }
+    .copy-btn {
+      margin-left: auto;
+      background: none;
+      border: 1px solid #2e6a2e;
+      color: var(--green);
+      border-radius: 6px;
+      padding: .25rem .65rem;
+      font-size: .8rem;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: background .15s;
+      font-weight: 500;
+    }
+    .copy-btn:hover { background: #2e6a2e; color: #fff; }
+
+    /* All emails table */
+    .all-emails-label {
+      font-size: .82rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: .07em;
+      margin-bottom: .6rem;
+    }
+    .email-list { list-style: none; display: flex; flex-direction: column; gap: .4rem; }
+    .email-item {
+      display: flex;
+      align-items: center;
+      gap: .6rem;
+      padding: .5rem .75rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: .9rem;
+    }
+    .email-item .addr { flex: 1; word-break: break-all; }
+    .score-pill {
+      font-size: .75rem;
+      padding: .15rem .55rem;
+      border-radius: 999px;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .score-high { background: #14532d; color: #86efac; }
+    .score-mid  { background: #78350f; color: #fcd34d; }
+    .score-low  { background: #374151; color: #9ca3af; }
+
+    /* Error state */
+    .error-msg {
+      color: #fca5a5;
+      background: #450a0a;
+      border: 1px solid #7f1d1d;
+      border-radius: 8px;
+      padding: .75rem 1rem;
+      font-size: .9rem;
+    }
+
+    /* ── Loading spinner in card ── */
+    .processing-row {
+      display: flex;
+      align-items: center;
+      gap: .75rem;
+      padding: 1rem 1.25rem;
+      color: var(--text-muted);
+      font-size: .9rem;
+    }
+    .spinner {
+      width: 18px; height: 18px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Toast ── */
+    #toast {
+      position: fixed;
+      bottom: 1.5rem; right: 1.5rem;
+      background: #1e293b;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: .65rem 1.1rem;
+      font-size: .88rem;
+      box-shadow: var(--shadow);
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity .25s, transform .25s;
+      pointer-events: none;
+      z-index: 1000;
+    }
+    #toast.show { opacity: 1; transform: none; }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <header>
+    <h1>&#9993; 网页邮箱提取器</h1>
+    <p>输入网站地址，自动爬取并识别官方联系邮箱</p>
+  </header>
+
+  <!-- Input card -->
+  <div class="card">
+    <div class="card-title">输入网站列表</div>
+    <textarea id="urlInput" rows="7"
+      placeholder="每行一个网址，例如：&#10;https://example.com&#10;https://openai.com&#10;fudan.edu.cn"></textarea>
+    <div class="btn-row">
+      <button class="btn-primary" id="startBtn" onclick="startExtraction()">
+        &#9654; 开始提取
+      </button>
+      <button class="btn-ghost" onclick="clearAll()">&#10006; 清空</button>
+      <button class="btn-export" id="exportBtn" onclick="exportCSV()" style="display:none;">
+        &#8659; 导出 CSV
+      </button>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div id="progress-wrap">
+    <div class="progress-label">
+      <span id="progressText">处理中…</span>
+      <span id="progressPct">0%</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progressBar"></div>
+    </div>
+    <div class="progress-status" id="progressStatus"></div>
+  </div>
+
+  <!-- Results -->
+  <div id="results">
+    <div class="result-header">
+      <h2>提取结果</h2>
+      <span class="stats-badge" id="statsLabel"></span>
+    </div>
+    <div id="resultList"></div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+/* ── State ── */
+let allResults = [];
+let totalUrls = 0;
+let _pollTimer = null;
+let _renderedCount = 0;  // how many results we've already rendered
+
+/* ── Entry point ── */
+async function startExtraction() {
+  const raw = document.getElementById('urlInput').value.trim();
+  if (!raw) { showToast('请先输入至少一个网址'); return; }
+
+  const urls = raw.split('\n').map(s => s.trim()).filter(Boolean);
+  if (!urls.length) { showToast('未检测到有效网址'); return; }
+
+  // Reset UI
+  allResults = [];
+  _renderedCount = 0;
+  totalUrls = urls.length;
+  clearTimeout(_pollTimer);
+  document.getElementById('resultList').innerHTML = '';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('exportBtn').style.display = 'none';
+  setProgress(0, urls.length, '正在启动任务…');
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('startBtn').disabled = true;
+
+  // POST to start background task
+  let taskId;
+  try {
+    const resp = await fetch('/api/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ urls: raw }),
+    });
+    const data = await resp.json();
+    if (data.error) { showToast(data.error); resetBtn(); return; }
+    taskId = data.task_id;
+    totalUrls = data.total;
+  } catch (e) {
+    showToast('无法连接服务器，请确认后端已启动');
+    resetBtn();
+    return;
+  }
+
+  // Poll every 2 seconds for new results
+  async function poll() {
+    try {
+      const resp = await fetch(`/api/results/${taskId}`);
+      if (!resp.ok) { showToast('获取结果失败，请刷新重试'); resetBtn(); return; }
+      const data = await resp.json();
+
+      // Render any newly completed results
+      const newResults = data.results.slice(_renderedCount);
+      for (const r of newResults) {
+        allResults.push(r);
+        renderResultCard(r);
+        document.getElementById('results').style.display = 'block';
+      }
+      _renderedCount = data.results.length;
+
+      // Update progress bar
+      const done = data.results.length;
+      const prog = data.progress || {};
+      if (data.done) {
+        setProgress(totalUrls, totalUrls, '全部完成');
+      } else {
+        setProgress(done, totalUrls, prog.message || `已完成 ${done}/${totalUrls}`);
+      }
+      updateStats();
+
+      if (data.done) {
+        resetBtn();
+        if (allResults.length) {
+          document.getElementById('exportBtn').style.display = 'inline-flex';
+          showToast(`完成！共处理 ${allResults.length} 个网站`);
+        } else {
+          showToast('处理完成，未发现任何邮箱');
+        }
+        return; // stop polling
+      }
+
+      _pollTimer = setTimeout(poll, 2000);
+    } catch (e) {
+      showToast('轮询出错，2秒后重试…');
+      _pollTimer = setTimeout(poll, 2000);
+    }
+  }
+
+  _pollTimer = setTimeout(poll, 1000); // first check after 1s
+}
+
+/* ── UI helpers ── */
+
+function setProgress(done, total, statusText) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  document.getElementById('progressBar').style.width = pct + '%';
+  document.getElementById('progressPct').textContent = pct + '%';
+  document.getElementById('progressText').textContent = `进度 ${done}/${total}`;
+  document.getElementById('progressStatus').textContent = statusText;
+}
+
+function resetBtn() {
+  document.getElementById('startBtn').disabled = false;
+}
+
+function clearAll() {
+  document.getElementById('urlInput').value = '';
+  document.getElementById('resultList').innerHTML = '';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('progress-wrap').style.display = 'none';
+  document.getElementById('exportBtn').style.display = 'none';
+  allResults = [];
+}
+
+function updateStats() {
+  const withEmail = allResults.filter(r => r.official_email).length;
+  document.getElementById('statsLabel').textContent =
+    `${allResults.length} 个网站 · ${withEmail} 个找到官方邮箱`;
+}
+
+/* ── Card rendering ── */
+
+function cardId(url) {
+  return 'card-' + btoa(unescape(encodeURIComponent(url))).replace(/[^a-zA-Z0-9]/g, '').slice(0, 20);
+}
+
+function renderResultCard(result) {
+  const id = cardId(result.url);
+  const existing = document.getElementById(id);
+  const html = buildSiteCard(result);
+  if (existing) {
+    existing.outerHTML = html;
+  } else {
+    document.getElementById('resultList').insertAdjacentHTML('beforeend', html);
+    // scroll new card into view
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function buildSiteCard(r) {
+  const id = cardId(r.url);
+  const hasEmails = r.all_emails && r.all_emails.length > 0;
+  const hasError = r.error;
+
+  let badgeClass, badgeText;
+  if (r.official_email) {
+    badgeClass = 'badge-ok'; badgeText = '✓ 已找到';
+  } else if (hasEmails) {
+    badgeClass = 'badge-warn'; badgeText = '⚠ 仅普通邮箱';
+  } else {
+    badgeClass = 'badge-err'; badgeText = '✗ 未找到';
+  }
+
+  // Official email row
+  let officialHtml = '';
+  if (r.official_email) {
+    officialHtml = `
+      <div class="official-row">
+        <span class="official-label">官方邮箱</span>
+        <span class="official-email">${escHtml(r.official_email)}</span>
+        <button class="copy-btn" onclick="copyEmail('${escHtml(r.official_email)}',event)">复制</button>
+      </div>`;
+  }
+
+  // Email list
+  let listHtml = '';
+  if (hasEmails) {
+    const maxScore = r.all_emails[0].score;
+    listHtml = `<div class="all-emails-label">所有发现的邮箱（共 ${r.all_emails.length} 个）</div>
+    <ul class="email-list">`;
+    for (const e of r.all_emails) {
+      const pillClass = e.score >= maxScore * .7 ? 'score-high'
+                      : e.score >= 0             ? 'score-mid'
+                      :                             'score-low';
+      listHtml += `<li class="email-item">
+        <span class="addr">${escHtml(e.email)}</span>
+        <span class="score-pill ${pillClass}">${e.score} 分</span>
+        <button class="copy-btn" onclick="copyEmail('${escHtml(e.email)}',event)" style="border-color:var(--border);color:var(--text-muted)">复制</button>
+      </li>`;
+    }
+    listHtml += '</ul>';
+  }
+
+  // Error/no-result notice
+  let noticeHtml = '';
+  if (hasError) {
+    noticeHtml = `<div class="error-msg">${escHtml(r.error)}</div>`;
+  }
+
+  const bodyContent = officialHtml + (hasEmails ? listHtml : '') + noticeHtml;
+
+  return `
+<div class="site-card" id="${id}">
+  <div class="site-header" onclick="toggleCard('${id}')">
+    <div class="site-icon">🌐</div>
+    <div class="site-url">${escHtml(r.url)}</div>
+    <span class="site-badge ${badgeClass}">${badgeText}</span>
+    <span class="chevron open" id="${id}-chev">▾</span>
+  </div>
+  <div class="site-body" id="${id}-body">
+    ${bodyContent || '<div style="color:var(--text-muted);font-size:.9rem;">该网站未发现任何邮箱地址</div>'}
+  </div>
+</div>`;
+}
+
+function toggleCard(id) {
+  const body = document.getElementById(id + '-body');
+  const chev = document.getElementById(id + '-chev');
+  if (!body) return;
+  const hidden = body.style.display === 'none';
+  body.style.display = hidden ? '' : 'none';
+  chev.classList.toggle('open', hidden);
+}
+
+/* ── Export CSV ── */
+async function exportCSV() {
+  if (!allResults.length) { showToast('暂无数据可导出'); return; }
+  try {
+    const resp = await fetch('/api/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ results: allResults }),
+    });
+    const blob = await resp.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'email_results.csv';
+    a.click();
+    showToast('CSV 文件已下载');
+  } catch {
+    showToast('导出失败，请重试');
+  }
+}
+
+/* ── Copy to clipboard ── */
+function copyEmail(email, evt) {
+  evt.stopPropagation();
+  navigator.clipboard.writeText(email).then(() => showToast('已复制: ' + email));
+}
+
+/* ── Toast ── */
+let _toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+/* ── Escape HTML ── */
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+</script>
+</body>
+</html>
